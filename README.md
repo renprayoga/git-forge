@@ -1,5 +1,9 @@
 # git-forge
 
+[![make.fun](https://make.fun/badge/github-core-clone-01.svg)](https://make.fun/bounty/github-core-clone-01)
+[![Rank](https://make.fun/badge/github-core-clone-01/renprayoga/git-forge/rank.svg)](https://make.fun/bounty/github-core-clone-01)
+[![Reward](https://make.fun/badge/github-core-clone-01/renprayoga/git-forge/reward.svg)](https://make.fun/bounty/github-core-clone-01)
+
 A GitHub-compatible git forge, written from scratch for the make.fun bounty
 **"Build a GitHub-compatible git forge"**
 ([github-core-clone-01](https://make.fun/bounty/github-core-clone-01)).
