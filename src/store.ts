@@ -262,14 +262,25 @@ export function readPack(pack: Buffer): Map<string, GitObject> {
         baseOid = pack.subarray(pos, pos + 20).toString('hex');
         pos += 20;
       }
-      const data = inflateSync(pack.subarray(pos));
-      // advance pos by the compressed length: re-deflate is not possible; find it by trial inflate with dictionary? Use zlib inflate with end position via raw approach:
-      pos = skipDeflate(pack, pos);
+      // One inflate, not a binary search of trial inflates: inflateSync with
+      // { info: true } reports the exact compressed bytes the stream consumed
+      // in engine.bytesWritten, trailing bytes (later objects / trailer) ignored.
+      const inflated = inflateSync(pack.subarray(pos), { info: true }) as unknown as {
+        buffer: Buffer;
+        engine: { bytesWritten: number };
+      };
+      const data = inflated.buffer;
+      pos += inflated.engine.bytesWritten;
       deltas.push({ offset: start, baseOffset, baseOid, data, type: 'blob' });
       void size;
     } else {
-      const data = inflateSync(pack.subarray(pos));
-      pos = skipDeflate(pack, pos);
+      // One inflate per object (see the delta branch above for why info:true).
+      const inflated = inflateSync(pack.subarray(pos), { info: true }) as unknown as {
+        buffer: Buffer;
+        engine: { bytesWritten: number };
+      };
+      const data = inflated.buffer;
+      pos += inflated.engine.bytesWritten;
       const obj: GitObject = { type: typeName as ObjType, data };
       const oid = hashObject(obj.type, obj.data);
       byOffset.set(start, obj);
@@ -298,34 +309,6 @@ export function readPack(pack: Buffer): Map<string, GitObject> {
     pending = next;
   }
   return byOid;
-}
-
-/** Advance past one zlib stream starting at `pos` by inflating with a bounded window. */
-function skipDeflate(buf: Buffer, pos: number): number {
-  // Inflate incrementally in chunks to find where the stream ends.
-  // Node's inflateSync consumes the whole tail; instead use a manual approach:
-  // try increasing end positions is too slow for large packs, so use zlib's
-  // inflate with `info` via a small helper: inflateSync on a slice and check
-  // the unused bytes by re-inflating slices with binary search on length.
-  let lo = pos;
-  let hi = buf.length;
-  // Find the smallest end such that inflateSync(buf[pos:end]) succeeds and
-  // the result length matches the stream's own end. Binary search on end.
-  const tryEnd = (end: number): boolean => {
-    try {
-      inflateSync(buf.subarray(pos, end));
-      return true;
-    } catch {
-      return false;
-    }
-  };
-  if (!tryEnd(hi)) throw new Error('corrupt deflate stream in pack');
-  while (lo + 1 < hi) {
-    const mid = (lo + hi) >> 1;
-    if (tryEnd(mid)) hi = mid;
-    else lo = mid;
-  }
-  return hi;
 }
 
 // ---------------------------------------------------------------- reachability
